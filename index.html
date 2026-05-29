@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Craps Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --felt:#0a3d2e;
+    --felt-deep:#06251c;
+    --bone:#f2ede1;
+    --gold:#d9b35c;
+    --gold-bright:#f0cf7a;
+    --chip-red:#b5202a;
+    --chip-red-dark:#7d1219;
+    --rail:#3a2417;
+  }
+  *{ -webkit-tap-highlight-color: transparent; }
+  html,body{ margin:0; height:100%; overscroll-behavior:none; }
+  body{
+    font-family:'DM Mono',monospace;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #135640 0%, var(--felt) 38%, var(--felt-deep) 100%);
+    color:var(--bone);
+    touch-action:manipulation;
+  }
+  .display-font{ font-family:'Oswald',sans-serif; }
+  .felt-texture{
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0);
+    background-size:7px 7px;
+  }
+  /* Press states: instant, no 300ms delay (touch-action handles it) */
+  .press{ transition:transform .06s ease, box-shadow .06s ease, background-color .1s ease; }
+  .press:active{ transform:scale(.94); }
+  .num-btn{
+    background:linear-gradient(180deg,#13503c,#0c3a2c);
+    border:1px solid rgba(217,179,92,.35);
+    box-shadow:0 4px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .num-btn:active{ box-shadow:0 1px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06); }
+  .chip-red{
+    background:radial-gradient(circle at 50% 35%, var(--chip-red) 0%, var(--chip-red-dark) 100%);
+    border:3px dashed rgba(242,237,225,.55);
+  }
+  .gold-btn{
+    background:linear-gradient(180deg,var(--gold-bright),var(--gold));
+    color:#2a1c08;
+    box-shadow:0 4px 0 #8a6d2c, inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  .gold-btn:active{ box-shadow:0 1px 0 #8a6d2c, inset 0 1px 0 rgba(255,255,255,.5); }
+  .overlay-in{ animation:pop .12s ease-out; }
+  @keyframes pop{ from{ opacity:0; transform:scale(.9);} to{ opacity:1; transform:scale(1);} }
+  .roll-chip{ animation:slidein .15s ease-out; }
+  @keyframes slidein{ from{ opacity:0; transform:translateX(8px);} to{ opacity:1; transform:translateX(0);} }
+  input{ font-family:'DM Mono',monospace; }
+  .scroll-soft{ scrollbar-width:none; }
+  .scroll-soft::-webkit-scrollbar{ display:none; }
+  .stat-card{ background:rgba(0,0,0,.25); border:1px solid rgba(217,179,92,.25); }
+</style>
+</head>
+<body class="felt-texture min-h-screen">
+
+<!-- ============ SETUP SCREEN ============ -->
+<div id="setupScreen" class="min-h-screen flex flex-col px-5 pt-10 pb-8 max-w-md mx-auto">
+  <div class="text-center mb-8">
+    <div class="text-6xl mb-2">🎲</div>
+    <h1 class="display-font text-4xl font-bold tracking-wide" style="color:var(--gold-bright)">CRAPS TRACKER</h1>
+    <p class="text-sm opacity-70 tracking-widest uppercase mt-1">Session Setup</p>
+  </div>
+
+  <div class="space-y-5 flex-1">
+    <div>
+      <label class="block text-xs uppercase tracking-widest mb-2 opacity-80" style="color:var(--gold)">Date</label>
+      <input id="inDate" type="date" class="w-full bg-black/30 border border-amber-200/30 rounded-xl px-4 py-4 text-lg text-bone focus:outline-none focus:border-amber-300/70" style="color:var(--bone)">
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-widest mb-2 opacity-80" style="color:var(--gold)">Table Minimum ($)</label>
+      <input id="inTableMin" type="number" inputmode="numeric" placeholder="25" class="w-full bg-black/30 border border-amber-200/30 rounded-xl px-4 py-4 text-lg focus:outline-none focus:border-amber-300/70" style="color:var(--bone)">
+    </div>
+    <div>
+      <label class="block text-xs uppercase tracking-widest mb-2 opacity-80" style="color:var(--gold)">Starting Bankroll ($)</label>
+      <input id="inBankroll" type="number" inputmode="numeric" placeholder="500" class="w-full bg-black/30 border border-amber-200/30 rounded-xl px-4 py-4 text-lg focus:outline-none focus:border-amber-300/70" style="color:var(--bone)">
+    </div>
+  </div>
+
+  <button id="startBtn" class="press gold-btn display-font text-2xl font-bold uppercase tracking-wider rounded-2xl py-5 mt-8">Start Session</button>
+</div>
+
+<!-- ============ TRACKING SCREEN ============ -->
+<div id="trackScreen" class="hidden min-h-screen flex-col max-w-md mx-auto pb-4">
+
+  <!-- Top bar: shooter + analytics -->
+  <div class="px-4 pt-4 pb-2 sticky top-0 z-10" style="background:linear-gradient(180deg, rgba(6,37,28,.95), rgba(6,37,28,.6));">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="text-[10px] uppercase tracking-widest opacity-60">Shooter</div>
+        <div id="shooterLabel" class="display-font text-3xl font-bold leading-none" style="color:var(--gold-bright)">#1</div>
+      </div>
+      <div class="text-right">
+        <div class="text-[10px] uppercase tracking-widest opacity-60">This Shooter</div>
+        <div id="shooterRollCount" class="display-font text-3xl font-bold leading-none">0</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2">
+      <div class="stat-card rounded-lg px-3 py-2">
+        <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">🔥 Hot Numbers</div>
+        <div id="hotNumbers" class="text-sm font-medium mt-0.5 truncate">—</div>
+      </div>
+      <div class="stat-card rounded-lg px-3 py-2">
+        <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">⚡ Inside Streak</div>
+        <div id="insideStreak" class="text-sm font-medium mt-0.5">0 rolls</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Roll feed for current shooter -->
+  <div class="px-4 py-2">
+    <div class="text-[10px] uppercase tracking-widest opacity-50 mb-1">Roll Sequence</div>
+    <div id="rollFeed" class="flex flex-wrap gap-1.5 min-h-[2.2rem] content-start max-h-24 overflow-y-auto scroll-soft">
+      <span class="opacity-40 text-sm">Tap a number to begin…</span>
+    </div>
+  </div>
+
+  <!-- Number grid -->
+  <div class="px-4 flex-1 flex flex-col justify-end">
+    <div id="numberGrid" class="grid grid-cols-3 gap-2.5 mb-3">
+      <!-- buttons injected -->
+    </div>
+
+    <div class="grid grid-cols-5 gap-2.5">
+      <button id="undoBtn" class="press num-btn rounded-xl py-4 col-span-2 text-sm uppercase tracking-wider opacity-90">↶ Undo</button>
+      <button id="nextShooterBtn" class="press chip-red rounded-full py-4 col-span-3 display-font text-lg font-bold uppercase tracking-wide text-bone" style="color:var(--bone)">Next Shooter →</button>
+    </div>
+
+    <button id="exportBtn" class="press gold-btn display-font text-xl font-bold uppercase tracking-wider rounded-2xl py-4 mt-3">⬇ Export Session</button>
+  </div>
+</div>
+
+<!-- ============ HARD/EASY OVERLAY ============ -->
+<div id="hardOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center px-6" style="background:rgba(3,18,13,.82)">
+  <div class="overlay-in w-full max-w-sm text-center">
+    <div class="text-sm uppercase tracking-widest opacity-70 mb-1">Logging</div>
+    <div id="overlayNum" class="display-font text-7xl font-bold mb-6" style="color:var(--gold-bright)">8</div>
+    <div class="grid grid-cols-2 gap-4">
+      <button id="easyBtn" class="press num-btn rounded-2xl py-8 display-font text-3xl font-bold uppercase">Easy</button>
+      <button id="hardBtn" class="press chip-red rounded-2xl py-8 display-font text-3xl font-bold uppercase" style="color:var(--bone)">Hard</button>
+    </div>
+    <button id="cancelOverlay" class="mt-5 text-sm uppercase tracking-widest opacity-50 px-4 py-2">Cancel</button>
+  </div>
+</div>
+
+<!-- ============ EXPORT P&L MODAL ============ -->
+<div id="plModal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-6" style="background:rgba(3,18,13,.85)">
+  <div class="overlay-in w-full max-w-sm bg-black/40 border border-amber-200/30 rounded-2xl p-6">
+    <h2 class="display-font text-2xl font-bold mb-1" style="color:var(--gold-bright)">Close Out Session</h2>
+    <p class="text-xs opacity-60 mb-4">Enter your ending profit / loss to finalize the log.</p>
+    <label class="block text-xs uppercase tracking-widest mb-2 opacity-80" style="color:var(--gold)">Ending P&L ($)</label>
+    <input id="inEndPL" type="number" inputmode="numeric" placeholder="e.g. 120 or -75" class="w-full bg-black/30 border border-amber-200/30 rounded-xl px-4 py-4 text-lg mb-5 focus:outline-none focus:border-amber-300/70" style="color:var(--bone)">
+    <div class="grid grid-cols-2 gap-3">
+      <button id="cancelPL" class="press num-btn rounded-xl py-4 uppercase text-sm tracking-wider">Cancel</button>
+      <button id="confirmExport" class="press gold-btn rounded-xl py-4 display-font font-bold uppercase tracking-wider">Download .md</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===================== STATE ===================== */
+const State = {
+  metadata: { date: "", tableMin: 0, startingBankroll: 0, endingPL: 0 },
+  shooters: [ { shooterId: 1, rolls: [] } ],
+  currentShooterIndex: 0
+};
+
+const INSIDE = new Set([5, 6, 8, 9]);
+const HARD_PROMPT = new Set([4, 6, 8, 10]);   // ask Easy/Hard
+const AUTO_HARD = new Set([2, 12]);           // logged hard, no prompt
+
+/* ===================== DOM ===================== */
+const $ = (id) => document.getElementById(id);
+let pendingNum = null;
+
+/* ===================== SETUP ===================== */
+(function initDate(){
+  const t = new Date();
+  const iso = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  $('inDate').value = iso;
+})();
+
+$('startBtn').addEventListener('click', () => {
+  State.metadata.date = $('inDate').value || new Date().toISOString().slice(0,10);
+  State.metadata.tableMin = Number($('inTableMin').value) || 0;
+  State.metadata.startingBankroll = Number($('inBankroll').value) || 0;
+  $('setupScreen').classList.add('hidden');
+  $('trackScreen').classList.remove('hidden');
+  $('trackScreen').classList.add('flex');
+  buildGrid();
+  render();
+});
+
+/* ===================== NUMBER GRID ===================== */
+function buildGrid(){
+  const grid = $('numberGrid');
+  grid.innerHTML = '';
+  for (let n = 2; n <= 12; n++){
+    const b = document.createElement('button');
+    b.className = 'press num-btn rounded-2xl py-6 display-font text-3xl font-bold';
+    b.textContent = n;
+    b.addEventListener('click', () => onNumberTap(n));
+    grid.appendChild(b);
+  }
+}
+
+function onNumberTap(n){
+  if (HARD_PROMPT.has(n)){
+    pendingNum = n;
+    $('overlayNum').textContent = n;
+    $('hardOverlay').classList.remove('hidden');
+    $('hardOverlay').classList.add('flex');
+    return;
+  }
+  // 2 & 12 auto-hard; 3,5,7,9,11 auto-easy
+  logRoll(n, AUTO_HARD.has(n));
+}
+
+/* ===================== OVERLAY ===================== */
+$('easyBtn').addEventListener('click', () => resolveOverlay(false));
+$('hardBtn').addEventListener('click', () => resolveOverlay(true));
+$('cancelOverlay').addEventListener('click', () => closeOverlay());
+
+function resolveOverlay(isHard){
+  if (pendingNum !== null) logRoll(pendingNum, isHard);
+  closeOverlay();
+}
+function closeOverlay(){
+  pendingNum = null;
+  $('hardOverlay').classList.add('hidden');
+  $('hardOverlay').classList.remove('flex');
+}
+
+/* ===================== LOGGING ===================== */
+function logRoll(rollValue, isHardway){
+  State.shooters[State.currentShooterIndex].rolls.push({ rollValue, isHardway });
+  render();
+}
+
+$('undoBtn').addEventListener('click', () => {
+  const rolls = State.shooters[State.currentShooterIndex].rolls;
+  if (rolls.length){ rolls.pop(); render(); return; }
+  // if current shooter empty and not the first, step back and remove the empty shooter
+  if (State.currentShooterIndex > 0){
+    State.shooters.pop();
+    State.currentShooterIndex--;
+    render();
+  }
+});
+
+/* Next Shooter: NEVER automatic. Only here. */
+$('nextShooterBtn').addEventListener('click', () => {
+  const newId = State.shooters[State.shooters.length - 1].shooterId + 1;
+  State.shooters.push({ shooterId: newId, rolls: [] });
+  State.currentShooterIndex = State.shooters.length - 1;
+  render();
+});
+
+/* ===================== ANALYTICS ===================== */
+function computeHotNumbers(){
+  const freq = {};
+  for (const s of State.shooters)
+    for (const r of s.rolls)
+      freq[r.rollValue] = (freq[r.rollValue] || 0) + 1;
+  let max = 0;
+  for (const k in freq) if (freq[k] > max) max = freq[k];
+  if (max === 0) return { nums: [], hits: 0 };
+  const nums = Object.keys(freq).filter(k => freq[k] === max).map(Number).sort((a,b)=>a-b);
+  return { nums, hits: max };
+}
+
+function longestInsideStreak(rolls){
+  let best = 0, cur = 0;
+  for (const r of rolls){
+    if (INSIDE.has(r.rollValue)){ cur++; best = Math.max(best, cur); }
+    else cur = 0;
+  }
+  return best;
+}
+
+/* longest streak across whole session (for export) */
+function longestInsideStreakSession(){
+  let best = 0;
+  for (const s of State.shooters)
+    best = Math.max(best, longestInsideStreak(s.rolls));
+  return best;
+}
+
+/* ===================== RENDER ===================== */
+function render(){
+  const cur = State.shooters[State.currentShooterIndex];
+  $('shooterLabel').textContent = '#' + cur.shooterId;
+  $('shooterRollCount').textContent = cur.rolls.length;
+
+  // roll feed
+  const feed = $('rollFeed');
+  feed.innerHTML = '';
+  if (!cur.rolls.length){
+    feed.innerHTML = '<span class="opacity-40 text-sm">Tap a number to begin…</span>';
+  } else {
+    cur.rolls.forEach(r => {
+      const chip = document.createElement('span');
+      chip.className = 'roll-chip rounded-md px-2 py-1 text-sm font-medium ' +
+        (r.isHardway
+          ? 'chip-red text-bone'
+          : 'bg-black/30 border border-amber-200/20');
+      if (r.isHardway) chip.style.color = 'var(--bone)';
+      chip.textContent = r.isHardway ? ('H' + r.rollValue) : r.rollValue;
+      feed.appendChild(chip);
+    });
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  // analytics
+  const hot = computeHotNumbers();
+  $('hotNumbers').textContent = hot.hits
+    ? `${hot.nums.join(', ')} (${hot.hits})`
+    : '—';
+  $('insideStreak').textContent = longestInsideStreak(cur.rolls) + ' rolls';
+}
+
+/* ===================== EXPORT ===================== */
+$('exportBtn').addEventListener('click', () => {
+  $('plModal').classList.remove('hidden');
+  $('plModal').classList.add('flex');
+});
+$('cancelPL').addEventListener('click', () => {
+  $('plModal').classList.add('hidden');
+  $('plModal').classList.remove('flex');
+});
+$('confirmExport').addEventListener('click', () => {
+  State.metadata.endingPL = Number($('inEndPL').value) || 0;
+  downloadMarkdown(buildMarkdown());
+  $('plModal').classList.add('hidden');
+  $('plModal').classList.remove('flex');
+});
+
+function tokenFor(r){
+  // Hardway (incl. 2 & 12) -> **H4***   ;  regular -> 5
+  return r.isHardway ? `**H${r.rollValue}***` : `${r.rollValue}`;
+}
+
+function buildMarkdown(){
+  const m = State.metadata;
+  let md = `# Casino Craps Session Log - ${m.date}\n`;
+  md += `* **Table Minimum:** $${m.tableMin}\n`;
+  md += `* **Starting Bankroll:** $${m.startingBankroll}\n`;
+  md += `* **Ending P&L:** $${m.endingPL}\n\n`;
+  md += `---\n`;
+
+  for (const s of State.shooters){
+    const seq = s.rolls.map(tokenFor).join(', ');
+    md += `## Shooter #${s.shooterId}\n`;
+    md += `* **Roll Sequence:** ${seq}\n`;
+    md += `* **Total Roll Count:** ${s.rolls.length} rolls\n\n`;
+    md += `---\n`;
+  }
+
+  const hot = computeHotNumbers();
+  const hotStr = hot.hits ? `${hot.nums.join(', ')} (${hot.hits} hits)` : 'None';
+  md += `## Session Post-Match Analysis\n`;
+  md += `* **Session Hot Numbers:** ${hotStr}\n`;
+  md += `* **Identified Streaks:** Longest consecutive inside streak was ${longestInsideStreakSession()} rolls.\n`;
+  return md;
+}
+
+function downloadMarkdown(text){
+  const blob = new Blob([text], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `craps-session-${State.metadata.date || 'log'}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
