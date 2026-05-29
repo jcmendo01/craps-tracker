@@ -61,6 +61,31 @@
   .scroll-soft{ scrollbar-width:none; }
   .scroll-soft::-webkit-scrollbar{ display:none; }
   .stat-card{ background:rgba(0,0,0,.25); border:1px solid rgba(217,179,92,.25); }
+
+  /* Phase banner */
+  .phase-banner{ transition: background .2s ease, border-color .2s ease; }
+  .phase-comeout{
+    background:rgba(0,0,0,.3);
+    border:1px solid rgba(217,179,92,.2);
+  }
+  .phase-point{
+    background:linear-gradient(90deg, rgba(217,179,92,.28), rgba(217,179,92,.06));
+    border:1px solid rgba(240,207,122,.55);
+  }
+  .phase-out{
+    background:linear-gradient(90deg, rgba(181,32,42,.5), rgba(181,32,42,.15));
+    border:1px solid rgba(240,140,140,.75);
+    animation: pulseWarn 1.6s ease-in-out infinite;
+  }
+  @keyframes pulseWarn{
+    0%,100%{ box-shadow:0 0 0 0 rgba(181,32,42,.55); }
+    50%{ box-shadow:0 0 0 8px rgba(181,32,42,0); }
+  }
+  .next-glow{ animation: nextGlow 1.4s ease-in-out infinite; }
+  @keyframes nextGlow{
+    0%,100%{ box-shadow:0 4px 0 #6a0e14, 0 0 0 0 rgba(245,180,180,.55); }
+    50%{ box-shadow:0 4px 0 #6a0e14, 0 0 0 10px rgba(245,180,180,0); }
+  }
 </style>
 </head>
 <body class="felt-texture min-h-screen">
@@ -96,27 +121,43 @@
 
   <!-- Top bar: shooter + analytics -->
   <div class="px-4 pt-4 pb-2 sticky top-0 z-10" style="background:linear-gradient(180deg, rgba(6,37,28,.95), rgba(6,37,28,.6));">
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center justify-between mb-2">
       <div>
         <div class="text-[10px] uppercase tracking-widest opacity-60">Shooter</div>
         <div id="shooterLabel" class="display-font text-3xl font-bold leading-none" style="color:var(--gold-bright)">#1</div>
       </div>
-      <div class="text-right">
-        <div class="text-[10px] uppercase tracking-widest opacity-60">This Shooter</div>
-        <div id="shooterRollCount" class="display-font text-3xl font-bold leading-none">0</div>
+      <div class="flex gap-4 text-right">
+        <div>
+          <div class="text-[10px] uppercase tracking-widest opacity-60">Rolls</div>
+          <div id="shooterRollCount" class="display-font text-2xl font-bold leading-none">0</div>
+        </div>
+        <div>
+          <div class="text-[10px] uppercase tracking-widest opacity-60">Pts Hit</div>
+          <div id="pointsHitCount" class="display-font text-2xl font-bold leading-none" style="color:var(--gold-bright)">0</div>
+        </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-2">
+    <!-- Phase Banner -->
+    <div id="phaseBanner" class="phase-banner phase-comeout rounded-xl px-4 py-2.5 mb-2 flex items-center justify-between">
+      <div>
+        <div id="phaseLabel" class="text-[10px] uppercase tracking-widest opacity-70" style="color:var(--gold)">Come Out</div>
+        <div id="phaseValue" class="display-font text-2xl font-bold leading-none mt-0.5">Awaiting Roll</div>
+      </div>
+      <div id="phaseHint" class="text-[11px] opacity-70 text-right max-w-[55%] leading-tight"></div>
+    </div>
+
+    <button id="quickViewBtn" class="press w-full grid grid-cols-2 gap-2 text-left">
       <div class="stat-card rounded-lg px-3 py-2">
         <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">🔥 Hot Numbers</div>
         <div id="hotNumbers" class="text-sm font-medium mt-0.5 truncate">—</div>
       </div>
-      <div class="stat-card rounded-lg px-3 py-2">
+      <div class="stat-card rounded-lg px-3 py-2 relative">
         <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">⚡ Inside Streak</div>
         <div id="insideStreak" class="text-sm font-medium mt-0.5">0 rolls</div>
+        <div class="absolute top-1 right-1.5 text-[10px] opacity-50" style="color:var(--gold)">⤢</div>
       </div>
-    </div>
+    </button>
   </div>
 
   <!-- Roll feed for current shooter -->
@@ -155,13 +196,56 @@
   </div>
 </div>
 
+<!-- ============ QUICK VIEW MODAL ============ -->
+<div id="quickViewModal" class="hidden fixed inset-0 z-50 items-center justify-center px-5" style="background:rgba(3,18,13,.92)">
+  <div class="overlay-in w-full max-w-sm bg-black/40 border border-amber-200/30 rounded-2xl p-5 max-h-[88vh] overflow-y-auto scroll-soft">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="display-font text-2xl font-bold leading-none" style="color:var(--gold-bright)">Quick View</h2>
+        <div class="text-[10px] uppercase tracking-widest opacity-60 mt-1">Live Session Snapshot</div>
+      </div>
+      <button id="closeQuickView" class="press text-xl opacity-70 px-3 py-1 rounded-lg" style="background:rgba(0,0,0,.3)">✕</button>
+    </div>
+
+    <!-- Summary row -->
+    <div class="grid grid-cols-3 gap-2 mb-5">
+      <div class="stat-card rounded-lg py-2 text-center">
+        <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">Total Rolls</div>
+        <div id="qvTotalRolls" class="display-font text-2xl font-bold leading-tight">0</div>
+      </div>
+      <div class="stat-card rounded-lg py-2 text-center">
+        <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">Shooters</div>
+        <div id="qvShooters" class="display-font text-2xl font-bold leading-tight">0</div>
+      </div>
+      <div class="stat-card rounded-lg py-2 text-center">
+        <div class="text-[9px] uppercase tracking-widest opacity-60" style="color:var(--gold)">Avg / Player</div>
+        <div id="qvAvgRolls" class="display-font text-2xl font-bold leading-tight">0</div>
+      </div>
+    </div>
+
+    <!-- Hot numbers ranked -->
+    <div class="text-xs uppercase tracking-widest opacity-70 mb-2" style="color:var(--gold)">🔥 Hot Numbers (most hit first)</div>
+    <div id="qvHotList" class="space-y-1.5 mb-2"></div>
+  </div>
+</div>
+
+
 <!-- ============ EXPORT P&L MODAL ============ -->
 <div id="plModal" class="hidden fixed inset-0 z-50 flex items-center justify-center px-6" style="background:rgba(3,18,13,.85)">
   <div class="overlay-in w-full max-w-sm bg-black/40 border border-amber-200/30 rounded-2xl p-6">
     <h2 class="display-font text-2xl font-bold mb-1" style="color:var(--gold-bright)">Close Out Session</h2>
-    <p class="text-xs opacity-60 mb-4">Enter your ending profit / loss to finalize the log.</p>
-    <label class="block text-xs uppercase tracking-widest mb-2 opacity-80" style="color:var(--gold)">Ending P&L ($)</label>
-    <input id="inEndPL" type="number" inputmode="numeric" placeholder="e.g. 120 or -75" class="w-full bg-black/30 border border-amber-200/30 rounded-xl px-4 py-4 text-lg mb-5 focus:outline-none focus:border-amber-300/70" style="color:var(--bone)">
+    <p class="text-xs opacity-60 mb-4">Enter what you're walking away with. We'll do the math.</p>
+
+    <div class="text-xs uppercase tracking-widest opacity-60 mb-1">Starting Bankroll</div>
+    <div id="startBankrollDisplay" class="display-font text-2xl mb-4" style="color:var(--bone)">$0</div>
+
+    <label class="block text-xs uppercase tracking-widest mb-2 opacity-80" style="color:var(--gold)">Ending Bankroll ($)</label>
+    <input id="inEndBankroll" type="number" inputmode="numeric" placeholder="e.g. 620" class="w-full bg-black/30 border border-amber-200/30 rounded-xl px-4 py-4 text-lg mb-4 focus:outline-none focus:border-amber-300/70" style="color:var(--bone)">
+
+    <div class="stat-card rounded-xl px-4 py-3 mb-5 flex items-center justify-between">
+      <span class="text-xs uppercase tracking-widest opacity-70" style="color:var(--gold)">Calculated P&L</span>
+      <span id="plPreview" class="display-font text-2xl font-bold">$0</span>
+    </div>
     <div class="grid grid-cols-2 gap-3">
       <button id="cancelPL" class="press num-btn rounded-xl py-4 uppercase text-sm tracking-wider">Cancel</button>
       <button id="confirmExport" class="press gold-btn rounded-xl py-4 display-font font-bold uppercase tracking-wider">Download .md</button>
@@ -247,7 +331,13 @@ function closeOverlay(){
 
 /* ===================== LOGGING ===================== */
 function logRoll(rollValue, isHardway){
-  State.shooters[State.currentShooterIndex].rolls.push({ rollValue, isHardway });
+  const rolls = State.shooters[State.currentShooterIndex].rolls;
+  const wasOut = computeShooterPhase(rolls).phase === 'sevenedOut';
+  rolls.push({ rollValue, isHardway });
+  const nowOut = computeShooterPhase(rolls).phase === 'sevenedOut';
+  if (nowOut && !wasOut && navigator.vibrate){
+    try { navigator.vibrate([60, 40, 60]); } catch(e){}
+  }
   render();
 }
 
@@ -300,11 +390,156 @@ function longestInsideStreakSession(){
   return best;
 }
 
+/* ===================== CRAPS PHASE ENGINE =====================
+   Derives game state from the rolls array. Single source of truth.
+   Undo works automatically because we never store derived state.
+   Per spec: never auto-advances shooter, only flags the seven-out.
+*/
+function computeShooterPhase(rolls){
+  let phase = 'comeOut';    // 'comeOut' | 'point' | 'sevenedOut'
+  let point = null;
+  let pointsHit = 0;
+  let naturals = 0;          // 7 or 11 on come-out
+  let comeOutCraps = 0;      // 2, 3, 12 on come-out
+  let sevenOutAt = null;     // 1-indexed roll number that sevened out
+
+  for (let i = 0; i < rolls.length; i++){
+    if (phase === 'sevenedOut') break; // ignore any post-out rolls for state
+    const v = rolls[i].rollValue;
+
+    if (phase === 'comeOut'){
+      if (v === 7 || v === 11) naturals++;
+      else if (v === 2 || v === 3 || v === 12) comeOutCraps++;
+      else { phase = 'point'; point = v; }
+    } else { // point phase
+      if (v === point){ pointsHit++; phase = 'comeOut'; point = null; }
+      else if (v === 7){ phase = 'sevenedOut'; sevenOutAt = i + 1; }
+    }
+  }
+  return { phase, point, pointsHit, naturals, comeOutCraps, sevenOutAt };
+}
+
+function outcomeText(rolls){
+  if (!rolls.length) return 'No rolls';
+  const p = computeShooterPhase(rolls);
+  if (p.phase === 'sevenedOut')
+    return `Seven-out on roll #${p.sevenOutAt} (${p.pointsHit} point${p.pointsHit !== 1 ? 's' : ''} hit)`;
+  if (p.phase === 'point')
+    return `Active on point ${p.point} (${p.pointsHit} point${p.pointsHit !== 1 ? 's' : ''} hit)`;
+  return `Active in come-out (${p.pointsHit} point${p.pointsHit !== 1 ? 's' : ''} hit)`;
+}
+
+/* ===================== QUICK VIEW ===================== */
+$('quickViewBtn').addEventListener('click', openQuickView);
+$('closeQuickView').addEventListener('click', closeQuickView);
+$('quickViewModal').addEventListener('click', (e) => {
+  if (e.target.id === 'quickViewModal') closeQuickView();
+});
+
+function openQuickView(){
+  // aggregate every roll across every shooter
+  const freq = {};
+  let total = 0;
+  for (const s of State.shooters)
+    for (const r of s.rolls){
+      freq[r.rollValue] = (freq[r.rollValue] || 0) + 1;
+      total++;
+    }
+
+  const shooterCount = State.shooters.length;
+  const avg = shooterCount ? (total / shooterCount) : 0;
+
+  $('qvTotalRolls').textContent = total;
+  $('qvShooters').textContent = shooterCount;
+  $('qvAvgRolls').textContent = avg % 1 === 0 ? avg : avg.toFixed(1);
+
+  // sort high to low, tie-break by number ascending
+  const ranked = Object.entries(freq)
+    .map(([n, c]) => ({ n: Number(n), c }))
+    .sort((a, b) => b.c - a.c || a.n - b.n);
+
+  const list = $('qvHotList');
+  list.innerHTML = '';
+
+  if (!ranked.length){
+    list.innerHTML = '<div class="opacity-50 text-sm text-center py-4">No rolls logged yet.</div>';
+  } else {
+    const max = ranked[0].c;
+    ranked.forEach((item, idx) => {
+      const pct = Math.max(8, (item.c / max) * 100);
+      const isTop = idx === 0;
+      const barClass = isTop
+        ? 'from-amber-400/55 via-amber-500/30 to-amber-500/0'
+        : 'from-emerald-500/35 via-emerald-600/15 to-emerald-700/0';
+      const numColor = isTop ? 'var(--gold-bright)' : 'var(--bone)';
+      const row = document.createElement('div');
+      row.className = 'relative stat-card rounded-lg overflow-hidden';
+      row.innerHTML = `
+        <div class="absolute inset-y-0 left-0 bg-gradient-to-r ${barClass}" style="width:${pct}%"></div>
+        <div class="relative flex items-center justify-between px-3 py-2">
+          <div class="flex items-center gap-3">
+            <div class="text-[10px] opacity-50 w-4">${idx + 1}</div>
+            <div class="display-font text-2xl font-bold" style="color:${numColor}">${item.n}</div>
+          </div>
+          <div class="text-sm font-medium">${item.c} hit${item.c !== 1 ? 's' : ''}</div>
+        </div>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  $('quickViewModal').classList.remove('hidden');
+  $('quickViewModal').classList.add('flex');
+}
+
+function closeQuickView(){
+  $('quickViewModal').classList.add('hidden');
+  $('quickViewModal').classList.remove('flex');
+}
+
 /* ===================== RENDER ===================== */
 function render(){
   const cur = State.shooters[State.currentShooterIndex];
   $('shooterLabel').textContent = '#' + cur.shooterId;
   $('shooterRollCount').textContent = cur.rolls.length;
+
+  // phase
+  const ph = computeShooterPhase(cur.rolls);
+  $('pointsHitCount').textContent = ph.pointsHit;
+
+  const banner = $('phaseBanner');
+  const label = $('phaseLabel');
+  const value = $('phaseValue');
+  const hint  = $('phaseHint');
+  banner.classList.remove('phase-comeout','phase-point','phase-out');
+
+  if (ph.phase === 'comeOut'){
+    banner.classList.add('phase-comeout');
+    label.textContent = 'Come Out';
+    label.style.color = 'var(--gold)';
+    value.textContent = cur.rolls.length ? 'Establish Point' : 'Awaiting Roll';
+    value.style.color = 'var(--bone)';
+    hint.textContent = 'Roll 4, 5, 6, 8, 9, or 10 to set a point.';
+  } else if (ph.phase === 'point'){
+    banner.classList.add('phase-point');
+    label.textContent = 'Point Is';
+    label.style.color = 'var(--gold)';
+    value.textContent = ph.point;
+    value.style.color = 'var(--gold-bright)';
+    hint.textContent = `Hit ${ph.point} again to clear. A 7 ends the hand.`;
+  } else { // sevenedOut
+    banner.classList.add('phase-out');
+    label.textContent = 'Seven Out';
+    label.style.color = '#ffb3b3';
+    value.textContent = '⚠ Hand Over';
+    value.style.color = '#ffd9d9';
+    hint.textContent = `Roll #${ph.sevenOutAt}. Tap Next Shooter →`;
+  }
+
+  // pulse the Next Shooter button when sevened out
+  const nextBtn = $('nextShooterBtn');
+  if (ph.phase === 'sevenedOut') nextBtn.classList.add('next-glow');
+  else nextBtn.classList.remove('next-glow');
 
   // roll feed
   const feed = $('rollFeed');
@@ -335,6 +570,9 @@ function render(){
 
 /* ===================== EXPORT ===================== */
 $('exportBtn').addEventListener('click', () => {
+  $('startBankrollDisplay').textContent = '$' + State.metadata.startingBankroll;
+  $('inEndBankroll').value = '';
+  updatePLPreview();
   $('plModal').classList.remove('hidden');
   $('plModal').classList.add('flex');
 });
@@ -342,8 +580,30 @@ $('cancelPL').addEventListener('click', () => {
   $('plModal').classList.add('hidden');
   $('plModal').classList.remove('flex');
 });
+$('inEndBankroll').addEventListener('input', updatePLPreview);
+
+function updatePLPreview(){
+  const endVal = $('inEndBankroll').value;
+  const el = $('plPreview');
+  if (endVal === '' || endVal === '-'){
+    el.textContent = '$0';
+    el.style.color = 'var(--bone)';
+    return;
+  }
+  const pl = Number(endVal) - Number(State.metadata.startingBankroll);
+  const sign = pl >= 0 ? '+' : '−';
+  el.textContent = `${sign}$${Math.abs(pl)}`;
+  el.style.color = pl > 0 ? '#7ee0a8' : pl < 0 ? '#f08a8a' : 'var(--bone)';
+}
+
 $('confirmExport').addEventListener('click', () => {
-  State.metadata.endingPL = Number($('inEndPL').value) || 0;
+  const endBank = Number($('inEndBankroll').value);
+  if ($('inEndBankroll').value === '' || isNaN(endBank)){
+    $('inEndBankroll').focus();
+    return;
+  }
+  State.metadata.endingBankroll = endBank;
+  State.metadata.endingPL = endBank - Number(State.metadata.startingBankroll);
   downloadMarkdown(buildMarkdown());
   $('plModal').classList.add('hidden');
   $('plModal').classList.remove('flex');
@@ -356,17 +616,29 @@ function tokenFor(r){
 
 function buildMarkdown(){
   const m = State.metadata;
+  const plVal = m.endingPL;
+  const plStr = plVal >= 0 ? `+$${plVal}` : `-$${Math.abs(plVal)}`;
   let md = `# Casino Craps Session Log - ${m.date}\n`;
   md += `* **Table Minimum:** $${m.tableMin}\n`;
   md += `* **Starting Bankroll:** $${m.startingBankroll}\n`;
-  md += `* **Ending P&L:** $${m.endingPL}\n\n`;
+  md += `* **Ending Bankroll:** $${m.endingBankroll ?? 0}\n`;
+  md += `* **Ending P&L:** ${plStr}\n\n`;
   md += `---\n`;
+
+  let sessionPointsHit = 0;
+  let sessionSevenOuts = 0;
 
   for (const s of State.shooters){
     const seq = s.rolls.map(tokenFor).join(', ');
+    const p = computeShooterPhase(s.rolls);
+    sessionPointsHit += p.pointsHit;
+    if (p.phase === 'sevenedOut') sessionSevenOuts++;
+
     md += `## Shooter #${s.shooterId}\n`;
-    md += `* **Roll Sequence:** ${seq}\n`;
-    md += `* **Total Roll Count:** ${s.rolls.length} rolls\n\n`;
+    md += `* **Roll Sequence:** ${seq || '(none)'}\n`;
+    md += `* **Total Roll Count:** ${s.rolls.length} rolls\n`;
+    md += `* **Points Hit:** ${p.pointsHit}\n`;
+    md += `* **Outcome:** ${outcomeText(s.rolls)}\n\n`;
     md += `---\n`;
   }
 
@@ -375,6 +647,8 @@ function buildMarkdown(){
   md += `## Session Post-Match Analysis\n`;
   md += `* **Session Hot Numbers:** ${hotStr}\n`;
   md += `* **Identified Streaks:** Longest consecutive inside streak was ${longestInsideStreakSession()} rolls.\n`;
+  md += `* **Total Points Hit (session):** ${sessionPointsHit}\n`;
+  md += `* **Seven-Outs Recorded:** ${sessionSevenOuts}\n`;
   return md;
 }
 
